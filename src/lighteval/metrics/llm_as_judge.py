@@ -28,7 +28,6 @@ from typing import Callable, Literal
 
 from tqdm import tqdm
 
-from lighteval.models.model_output import ModelResponse
 from lighteval.utils.imports import is_litellm_available, is_openai_available, is_vllm_available
 
 
@@ -196,30 +195,20 @@ class JudgeLM:
         def __call_api(prompt):
             for _ in range(self.API_MAX_RETRY):
                 try:
-                    kwargs = {
-                        "model": self.model,
-                        "messages": prompt,
-                        "response_format": {"type": "text"},
-                        "max_tokens": 512,
-                        "n": 1,
-                        "caching": True,
-                    }
-                    response = litellm.completion(**kwargs)
+                    response = litellm.completion(
+                        model=self.model,
+                        messages=prompt,
+                        response_format={"type": "text"},
+                        max_tokens=512,
+                        n=1,
+                        caching=True,
+                    )
                     text = response.choices[0].message.content
-                    if not text or response.failed:
-                        kwargs["caching"] = False
-                        response = litellm.completion(**kwargs)
-                        text = response.choices[0].message.content
-                        if not text or response.failed:
-                            # Just return an error response if the second attempt fails too
-                            return ModelResponse(
-                                text="Failed to get response from the API.", model=self.model, failed=True
-                            )
                     return text
                 except Exception as e:
                     logger.warning(f"{type(e), e}")
                     time.sleep(self.API_RETRY_SLEEP)
-            return ModelResponse(text="Failed to get response from the API.", model=self.model, failed=True)
+            raise Exception("Failed to get response from the API")
 
         results = []
         with ThreadPoolExecutor(100) as executor:
